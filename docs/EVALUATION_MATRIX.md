@@ -20,6 +20,7 @@ This document is an internal engineering map from the Vault implementation to th
 | Browser hardening | CSP metadata, strict referrer policy, no inline JavaScript, safe output escaping, redirect blocking, and security headers are present. |
 | API hardening | Restricted CORS, bounded request rate limiting, `nosniff`, frame-denial, no-store responses, browser isolation headers, and explicit HTTP(S) URL validation are used. |
 | Container hardening | Gateway, worker, frontend, and storage nodes run as non-root with dropped capabilities, no-new-privileges, read-only root filesystems, and hardened temporary filesystems. |
+| Supply-chain monitoring | Dependabot, CodeQL, and `pip-audit` workflows continuously check dependencies and source. |
 | Secret handling | Compose service credentials are supplied at runtime rather than committed as fixed database/Redis passwords. |
 | Safe retries | Mutating PUT is not blindly retried after ambiguous network failure; safe/idempotent operations use bounded retry policies. |
 
@@ -34,6 +35,8 @@ This document is an internal engineering map from the Vault implementation to th
 | Cached storage accounting | Storage usage is cached and updated under a lock instead of scanning the filesystem for every statistics request. |
 | Concurrency | Independent replica network writes are performed concurrently while metadata transitions remain centralized; delete traffic is parallelized while reusing node clients. |
 | Reduced client overhead | Delete paths reuse node clients and close them together. |
+| Bounded catalog reads | Object catalog queries enforce `1..1000` limits and support offsets; the frontend requests a bounded page. |
+| Bounded client requests | Frontend API calls use an abort timeout so dead connections do not occupy browser resources indefinitely. |
 
 ## Testing
 
