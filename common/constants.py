@@ -1,0 +1,89 @@
+"""Canonical states, error codes, and initial policy defaults for Vault."""
+
+from enum import StrEnum
+
+
+class ObjectState(StrEnum):
+    ACTIVE = "ACTIVE"
+    DELETING = "DELETING"
+    DELETED = "DELETED"
+
+
+class VersionState(StrEnum):
+    PREPARING = "PREPARING"
+    COMMITTED = "COMMITTED"
+    FAILED = "FAILED"
+
+
+class ReplicaState(StrEnum):
+    PENDING = "PENDING"
+    COPYING = "COPYING"
+    HEALTHY = "HEALTHY"
+    STALE = "STALE"
+    CORRUPTED = "CORRUPTED"
+    UNAVAILABLE = "UNAVAILABLE"
+    REPAIRING = "REPAIRING"
+    FAILED = "FAILED"
+
+
+class NodeState(StrEnum):
+    JOINING = "JOINING"
+    HEALTHY = "HEALTHY"
+    SUSPECT = "SUSPECT"
+    UNAVAILABLE = "UNAVAILABLE"
+    RECOVERING = "RECOVERING"
+    DRAINING = "DRAINING"
+    REMOVED = "REMOVED"
+
+# Canonical object lifecycle transitions. Same-state writes are treated as no-ops.
+OBJECT_STATE_TRANSITIONS = {
+    ObjectState.ACTIVE: frozenset({ObjectState.DELETING}),
+    ObjectState.DELETING: frozenset({ObjectState.DELETED}),
+    ObjectState.DELETED: frozenset(),
+}
+
+# Canonical node lifecycle transitions. Same-state writes are treated as no-ops.
+NODE_STATE_TRANSITIONS = {
+    NodeState.JOINING: frozenset({NodeState.HEALTHY}),
+    NodeState.HEALTHY: frozenset({NodeState.SUSPECT, NodeState.DRAINING}),
+    NodeState.SUSPECT: frozenset({NodeState.HEALTHY, NodeState.UNAVAILABLE}),
+    NodeState.UNAVAILABLE: frozenset({NodeState.RECOVERING}),
+    NodeState.RECOVERING: frozenset({NodeState.HEALTHY, NodeState.SUSPECT}),
+    NodeState.DRAINING: frozenset({NodeState.REMOVED}),
+    NodeState.REMOVED: frozenset(),
+}
+
+
+class JobStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+class ErrorCode(StrEnum):
+    OBJECT_NOT_FOUND = "OBJECT_NOT_FOUND"
+    OBJECT_ALREADY_EXISTS = "OBJECT_ALREADY_EXISTS"
+    VERSION_CONFLICT = "VERSION_CONFLICT"
+    NODE_UNAVAILABLE = "NODE_UNAVAILABLE"
+    INSUFFICIENT_REPLICAS = "INSUFFICIENT_REPLICAS"
+    CHECKSUM_MISMATCH = "CHECKSUM_MISMATCH"
+    REPAIR_IN_PROGRESS = "REPAIR_IN_PROGRESS"
+    STORAGE_FULL = "STORAGE_FULL"
+    INVALID_REQUEST = "INVALID_REQUEST"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+
+
+DEFAULT_REPLICATION_FACTOR = 3
+DEFAULT_WRITE_QUORUM = 2
+DEFAULT_READ_QUORUM = 1
+DEFAULT_CHUNK_SIZE_MB = 16
+
+DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 5
+DEFAULT_SUSPECT_AFTER_SECONDS = 15
+DEFAULT_UNAVAILABLE_AFTER_SECONDS = 30
+DEFAULT_MAX_PARALLEL_REPAIRS = 4
+DEFAULT_INITIAL_BACKOFF_SECONDS = 2.0
+DEFAULT_STORAGE_REQUEST_TIMEOUT_SECONDS = 30.0
+DEFAULT_INTEGRITY_SCAN_INTERVAL_SECONDS = 3600.0
+DEFAULT_UNDER_REPLICATED_SCAN_INTERVAL_SECONDS = 30.0
