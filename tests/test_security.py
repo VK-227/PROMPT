@@ -37,3 +37,25 @@ def test_rate_limiter_requires_client_key(value):
 def test_rate_limiter_can_be_disabled():
     limiter = SlidingWindowRateLimiter(limit=0)
     assert limiter.allow("client-a") == (True, 0)
+
+
+def test_rate_limiter_bounds_client_state():
+    limiter = SlidingWindowRateLimiter(limit=1, window_seconds=60, max_clients=2)
+    assert limiter.allow("client-a", now=1.0)[0] is True
+    assert limiter.allow("client-b", now=1.0)[0] is True
+    assert limiter.allow("client-c", now=1.0)[0] is True
+    # A new client cannot cause unbounded retention of client identities.
+    assert len(limiter._events) <= 2  # noqa: SLF001
+
+
+def test_security_contract_documents_modern_browser_isolation():
+    from pathlib import Path
+
+    source = Path("gateway/app.py").read_text(encoding="utf-8")
+    for header in (
+        "Cross-Origin-Opener-Policy",
+        "Cross-Origin-Resource-Policy",
+        "Origin-Agent-Cluster",
+        "Strict-Transport-Security",
+    ):
+        assert header in source
