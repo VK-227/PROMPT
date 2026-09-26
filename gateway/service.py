@@ -47,12 +47,18 @@ class GatewayService:
         self.session = session
         self.metadata = MetadataManager(session)
 
-    def list_objects(self) -> list[Object]:
+    def list_objects(self, *, limit: int = 500, offset: int = 0) -> list[Object]:
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 1000:
+            raise ValueError("limit must be an integer between 1 and 1000")
+        if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+            raise ValueError("offset must be a non-negative integer")
         return list(
             self.session.scalars(
                 select(Object)
                 .where(Object.state != ObjectState.DELETED)
                 .order_by(Object.name)
+                .offset(offset)
+                .limit(limit)
             ).all()
         )
 
