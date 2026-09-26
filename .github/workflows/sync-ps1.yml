@@ -1,0 +1,33 @@
+name: Sync ps1 main into PROMPT
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PROMPT
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Clone ps1 main
+        run: git clone --depth 1 --branch main https://github.com/PROMPT-A-THON-26/ps1.git /tmp/ps1
+      - name: Replace contents
+        run: rsync -a --delete --exclude='.git' --exclude='.github/workflows/sync-ps1.yml' /tmp/ps1/ ./
+      - name: Commit synced repository
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Sync from PROMPT-A-THON-26/ps1 main'
+          git push origin HEAD:main
+      - name: Remove sync workflow from working tree
+        run: |
+          git rm -f .github/workflows/sync-ps1.yml || true
+          git commit -m 'Remove temporary sync workflow' || true
+          git push origin HEAD:main || true
