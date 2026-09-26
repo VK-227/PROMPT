@@ -155,3 +155,7 @@ def test_api_requests_have_a_bounded_timeout():
     assert "new AbortController()" in JS
     assert "controller.abort()" in JS
     assert "REQUEST_TIMEOUT" in JS
+
+
+def test_live_catalog_request_is_bounded():
+    assert '"/objects?limit=500&offset=0"' in JS
