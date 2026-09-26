@@ -202,7 +202,7 @@
   function showView(view){
     if(!ROUTES.includes(view))view="overview";
     state.view=view;
-    $(".nav-item").forEach(b=>{const active=b.dataset.view===view;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
+    $$(".nav-item").forEach(b=>{const active=b.dataset.view===view;b.classList.toggle("active",active);if(active)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");});
     $$(".view").forEach(v=>v.classList.toggle("visible",v.id==="view-"+view));
     $("#view-title").textContent=view.charAt(0).toUpperCase()+view.slice(1);
     history.replaceState(null,"","#"+view);
