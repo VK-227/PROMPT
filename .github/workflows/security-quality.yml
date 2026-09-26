@@ -1,0 +1,51 @@
+name: Security and quality gates
+
+on:
+  push:
+    branches: [main, MASTER]
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  static-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Compile all Python
+        run: python -m compileall -q .
+      - name: Ruff critical-error scan
+        run: |
+          pip install ruff
+          ruff check . --select E9,F63,F7,F82 --output-format=github
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit Python dependencies
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          pip-audit -r requirements.txt --progress-spinner off
+
+  frontend-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify frontend JavaScript syntax
+        run: node --check frontend/js/app.js
+      - name: Run frontend verifier
+        run: python frontend/tests/verify_frontend.py
