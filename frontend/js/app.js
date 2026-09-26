@@ -4,6 +4,7 @@
   const CONFIG = window.VAULT_CONFIG || { mode: "mock", baseUrl: "/api/v1" };
 
   const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+  const API_TIMEOUT_MS = 30000;
   const SAFE_FILENAME = /^[^\x00-\x1f\x7f]+$/;
 
   function resolveApiBaseUrl(raw) {
@@ -130,9 +131,20 @@
       headers.set("X-Request-ID",requestId);
       const base=this.baseUrl.replace(/\/$/,"");
       const url=base+(path.startsWith("/")?path:"/"+path);
+      const controller=new AbortController();
+      const timeout=window.setTimeout(()=>controller.abort(),API_TIMEOUT_MS);
       let response;
-      try{response=await fetch(new URL(url,location.origin),{...options,headers,redirect:"error"});}
-      catch(error){const err=new Error(error?.message||"Unable to reach the Vault API");err.code="NETWORK_ERROR";err.requestId=requestId;throw err;}
+      try{
+        response=await fetch(new URL(url,location.origin),{...options,headers,redirect:"error",signal:controller.signal});
+      }catch(error){
+        const timedOut=error?.name==="AbortError";
+        const err=new Error(timedOut?"Vault API request timed out.":(error?.message||"Unable to reach the Vault API"));
+        err.code=timedOut?"REQUEST_TIMEOUT":"NETWORK_ERROR";
+        err.requestId=requestId;
+        throw err;
+      }finally{
+        window.clearTimeout(timeout);
+      }
       const body=await response.json().catch(()=>({}));
       if(!response.ok){const e=body.error||{};const err=new Error(e.message||"API request failed");err.code=e.code||"HTTP_"+response.status;err.requestId=e.request_id||requestId;throw err;}
       return body;
