@@ -47,3 +47,26 @@ def test_version_history_reports_replica_counts_in_batch(db_session):
 
     assert [item["version_number"] for item in result] == [1, 2]
     assert [item["healthy_replicas"] for item in result] == [3, 2]
+
+
+def test_object_catalog_query_is_bounded(db_session):
+    manager = MetadataManager(db_session)
+    for index in range(3):
+        manager.create_object(f"bounded-{index}.bin")
+
+    result = GatewayService(db_session).list_objects(limit=2, offset=1)
+
+    assert len(result) == 2
+    assert [obj.name for obj in result] == ["bounded-1.bin", "bounded-2.bin"]
+
+
+def test_object_catalog_rejects_unbounded_limits(db_session):
+    service = GatewayService(db_session)
+
+    for limit in (0, 1001, -1):
+        try:
+            service.list_objects(limit=limit)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("unsafe catalog limit was accepted")
