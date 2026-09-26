@@ -173,7 +173,7 @@
     async sync(){
       if(this.mode!=="api")return;
       stateBusy(true);
-      const results=await Promise.allSettled([this.get("/health"),this.get("/nodes"),this.get("/objects")]);
+      const results=await Promise.allSettled([this.get("/health"),this.get("/nodes"),this.get("/objects?limit=500&offset=0")]);
       const [health,nodes,objects]=results;
       const errors=[];
       if(health.status==="fulfilled")DATA.liveHealth=health.value;else errors.push("health");
