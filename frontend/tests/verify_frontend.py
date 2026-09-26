@@ -148,3 +148,10 @@ if __name__ == "__main__":
     for test in tests:
         test()
     print("frontend verifier: %d checks passed" % len(tests))
+
+
+def test_api_requests_have_a_bounded_timeout():
+    assert "API_TIMEOUT_MS = 30000" in JS
+    assert "new AbortController()" in JS
+    assert "controller.abort()" in JS
+    assert "REQUEST_TIMEOUT" in JS
