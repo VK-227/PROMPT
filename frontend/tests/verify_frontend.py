@@ -163,3 +163,17 @@ def test_api_requests_have_a_bounded_timeout():
 
 def test_live_catalog_request_is_bounded():
     assert '"/objects?limit=500&offset=0"' in JS
+
+
+def test_user_friendly_ui_contract():
+    for token in (
+        '>Home</button>', '>Storage</button>', '>Files</button>', '>Recovery</button>',
+        '>File checks</button>', '>Balance storage</button>', '>Activity</button>', '>Settings</button>',
+        'Your storage at a glance', 'Upload a file', '3 copies · save after 2',
+        'Search file name or status',
+    ):
+        assert token in HTML
+    assert '$$(".nav-item").forEach' in JS
+    assert 'function friendlyLifecycle' in JS
+    assert '.btn{height:42px' in CSS
+    assert 'body{font-size:15px' in CSS

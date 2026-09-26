@@ -71,13 +71,13 @@
 
   const state = {view:"overview",nodeFilter:"all",objectFilter:"all",eventFilter:"all",selectedObject:null,commandIndex:0,drillRunning:false};
   const STATUS_META=Object.freeze({
-    healthy:["green","HEALTHY"],
-    attention:["amber","ATTENTION"],
-    degraded:["amber","DEGRADED"],
-    corrupted:["red","CORRUPTED"],
-    running:["amber","RUNNING"],
-    success:["green","SUCCEEDED"],
-    draining:["amber","DRAINING"]
+    healthy:["green","OK"],
+    attention:["amber","NEEDS ATTENTION"],
+    degraded:["amber","MISSING COPY"],
+    corrupted:["red","DAMAGED COPY"],
+    running:["amber","WORKING"],
+    success:["green","DONE"],
+    draining:["amber","STOPPING"]
   });
   const BYTE_UNITS=Object.freeze(["B","KB","MB","GB","TB"]);
   const BYTE_MULTIPLIERS=Object.freeze({B:1,KB:1024,MB:1024**2,GB:1024**3,TB:1024**4});
@@ -209,22 +209,26 @@
     window.scrollTo({top:0,behavior:"smooth"});
     renderAll();
   }
+  function friendlyLifecycle(value){
+    const v=String(value||"").toUpperCase();
+    return v==="HEALTHY"||v==="READY"?"READY":v==="DRAINING"?"STOPPING":v==="JOINING"?"STARTING":v==="SUSPECT"?"CHECKING":v==="UNAVAILABLE"?"OFFLINE":v==="RECOVERING"?"RECOVERING":v;
+  }
   function status(s){
     const m=STATUS_META[s]||["green",String(s||"unknown").toUpperCase()];
     return "<span class='status "+m[0]+"'><i></i>"+escapeHtml(m[1])+"</span>";
   }
   function renderEnvironment(){
     const live=CONFIG.mode==="api", ok=live?DATA.sync.status==="live":true;
-    $("#env-label").textContent=live?(ok?"LIVE API":"API "+String(DATA.sync.status||"CONNECTING").toUpperCase()):"DEMO MODE";
-    $("#env-detail").textContent=live?(DATA.sync.at?"Last sync "+formatTimestamp(DATA.sync.at):"Connecting to Part B…"):"Safe local simulation";
-    $("#api-badge").textContent=live?"LIVE API":"MOCK MODE";
+    $("#env-label").textContent=live?(ok?"LIVE DATA":"CHECKING CONNECTION"):"DEMO MODE";
+    $("#env-detail").textContent=live?(DATA.sync.at?"Updated "+formatTimestamp(DATA.sync.at):"Connecting to storage…"):"Safe local example";
+    $("#api-badge").textContent=live?"LIVE DATA":"DEMO DATA";
     $("#api-badge").className="chip "+(live?"green":"amber");
     $("#api-base-url").textContent=CONFIG.baseUrl;
-    $("#topology-live-label").textContent=live?"live telemetry":"demo telemetry";
+    $("#topology-live-label").textContent=live?"live data":"demo data";
     $("#request-label").textContent=DATA.sync.at&&live?"req_live_"+String(DATA.sync.at.getTime()).slice(-6):"req_demo_7F2A";
     $("#request-dot").style.background=live?(ok?"var(--green)":"var(--amber)"):"var(--blue)";
-    $("#signal-control").textContent=live?(ok?"Connected":"Degraded"):"Connected";
-    $("#signal-control-icon").textContent=live?(ok?"✓":"!"):"✓";
+    $("#signal-control").textContent=live?(ok?"Connected":"Needs attention"):"Example";
+    $("#signal-control-icon").textContent=live?(ok?"✓":"!"):"✓"; if($("#sidebar-health-detail")) $("#sidebar-health-detail").textContent=live?(ok?"Connected to storage":"Storage needs attention"):"Example mode";
   }
   function renderSummary(){
     const nodes=DATA.nodes,healthy=nodes.filter(n=>n.status==="healthy").length,attention=nodes.length-healthy;
@@ -235,14 +239,14 @@
     $("#resilience-score").innerHTML=score.toFixed(1)+"<small>/100</small>";$("#score-meter").style.width=score+"%";$("#score-meter").parentElement.setAttribute("aria-valuenow",String(score));$("#score-delta").textContent=attention?("−"+Math.min(3,attention*0.9).toFixed(1)+"%"):"+1.8%";
     $("#storage-used").innerHTML=(totalUsed?formatBytes(totalUsed):"1.44 TB").replace(" ","<small> ")+"</small>";$("#storage-chip").textContent=usedPct+"%";$("#storage-meter").style.width=Math.min(100,usedPct)+"%";$("#storage-meter").parentElement.setAttribute("aria-valuenow",String(Math.min(100,usedPct)));$("#storage-caption").textContent=totalCapacity?formatBytes(totalCapacity)+" total logical capacity":"2.0 TB logical capacity";
     $("#signal-headroom").textContent=headroom+"% remaining";$("#healthy-replicas").innerHTML=(attention?Math.max(0,100-attention*4):99.4).toFixed(1)+"<small>%</small>";
-    $("#nodes-count").textContent=nodes.length;$("#nodes-summary").textContent=healthy+" healthy · "+attention+" attention";
+    $("#nodes-count").textContent=nodes.length;$("#nodes-summary").textContent=healthy+" ready · "+attention+" need"+(attention===1?"s":"")+" attention";
     const free=totalCapacity-totalUsed;$("#available-capacity").innerHTML=(free?formatBytes(free):"560 GB").replace(" ","<small> ")+"</small>";$("#capacity-summary").textContent=headroom+"% cluster headroom";
-    $("#write-acceptance").innerHTML=(attention?Math.round((healthy/Math.max(nodes.length,1))*100):100)+"<small>%</small>";$("#write-summary").textContent=attention?"Some nodes need attention":"All nodes accepting writes";
+    $("#write-acceptance").innerHTML=(attention?Math.round((healthy/Math.max(nodes.length,1))*100):100)+"<small>%</small>";$("#write-summary").textContent=attention?"Some locations need attention":"All ready locations can save files";
     const heartbeatSeconds=nodes.map(n=>parseFloat(String(n.heartbeat).replace("s",""))).filter(Number.isFinite);const median=heartbeatSeconds.length?heartbeatSeconds.sort((a,b)=>a-b)[Math.floor(heartbeatSeconds.length/2)]:2.1;$("#median-heartbeat").innerHTML=median.toFixed(1)+"<small>s</small>";
     $("#health-ring-score").textContent=score.toFixed(1);$("#health-ring").setAttribute("aria-valuenow",String(score));$("#health-ring").style.background="conic-gradient(var(--green) 0 "+score+"%,#193042 "+score+"% 100%)";
-    $("#cluster-badge").textContent=attention||liveBad?"ATTENTION":"HEALTHY";$("#cluster-badge").className="badge "+(attention||liveBad?"amber":"green");$("#cluster-summary").textContent=attention||liveBad?"Cluster requires attention":"All core services operational";
-    const attentionNode=nodes.find(n=>n.status==="attention");$("#cluster-copy").textContent=attentionNode?(attentionNode.id+" needs attention. Reads remain available."): "No current loss of read availability.";
-    const hot=nodes.find(n=>n.percent>=80);$("#ops-banner").classList.toggle("good-news",!hot);$("#ops-banner-title").textContent=hot?hot.id+" is above the 80% watermark":"Cluster operating inside the configured watermark";$("#ops-banner-copy").textContent=hot?"Rebalance is eligible before capacity pressure becomes a failure mode.":"No capacity watermark is currently breached.";
+    $("#cluster-badge").textContent=attention||liveBad?"CHECK THIS":"ALL GOOD";$("#cluster-badge").className="badge "+(attention||liveBad?"amber":"green");$("#cluster-summary").textContent=attention||liveBad?"Something needs your attention":"Everything is running";
+    const attentionNode=nodes.find(n=>n.status==="attention");$("#cluster-copy").textContent=attentionNode?(attentionNode.id+" needs attention, but your files remain available."): "Your files are currently available.";
+    const hot=nodes.find(n=>n.percent>=80);$("#ops-banner").classList.toggle("good-news",!hot);$("#ops-banner-title").textContent=hot?hot.id+" is running low on space":"Storage space looks good";$("#ops-banner-copy").textContent=hot?"We can move some saved copies to a roomier location.":"No storage location is close to the warning level.";
   }
   function updateTopology(){
     DATA.nodes.slice(0,4).forEach(n=>{const el=$("#topology-"+n.id);if(!el)return;const dot=el.querySelector(".dot"),name=el.querySelector("b"),meta=el.querySelector("small");dot.className="dot "+(n.status==="healthy"?"good":"warn");name.textContent=n.id;meta.textContent=n.percent+"% used";el.classList.toggle("attention-node",n.status!=="healthy");});
@@ -250,7 +254,7 @@
   function renderNodes(){
     const q=($("#node-search")?.value||"").toLowerCase();
     const rows=DATA.nodes.filter(n=>(state.nodeFilter==="all"||(state.nodeFilter==="healthy"&&n.status==="healthy")||(state.nodeFilter==="attention"&&n.status==="attention"))&&(!q||(n.id+" "+n.lifecycle).toLowerCase().includes(q)));
-    $("#nodes-body").innerHTML=rows.length?rows.map(n=>{const actionLabel=n.lifecycle==="DRAINING"?"Resume":"Drain";return "<tr><td class='objid'>"+escapeHtml(n.id)+"</td><td>"+status(n.status)+"</td><td>"+n.capacity+"</td><td><b>"+n.used+"</b> <small>"+n.percent+"%</small></td><td>"+(typeof n.objects==="number"?n.objects.toLocaleString():"—")+"</td><td>"+escapeHtml(n.heartbeat)+"</td><td><span class='chip "+(n.lifecycle==="HEALTHY"?"green":"amber")+"'>"+escapeHtml(n.lifecycle)+"</span></td><td><button class='table-action' data-node='"+escapeHtml(n.id)+"' data-node-action='"+actionLabel.toLowerCase()+"' aria-label='"+actionLabel+" "+escapeHtml(n.id)+"'>"+actionLabel+"</button></td></tr>";}).join(""):"<tr><td colspan='8' class='empty-row'>No nodes match this filter.</td></tr>";
+    $("#nodes-body").innerHTML=rows.length?rows.map(n=>{const actionLabel=n.lifecycle==="DRAINING"?"Start again":"Stop";return "<tr><td class='objid'>"+escapeHtml(n.id)+"</td><td>"+status(n.status)+"</td><td>"+n.capacity+"</td><td><b>"+n.used+"</b> <small>"+n.percent+"%</small></td><td>"+(typeof n.objects==="number"?n.objects.toLocaleString():"—")+"</td><td>"+escapeHtml(n.heartbeat)+"</td><td><span class='chip "+(n.lifecycle==="HEALTHY"?"green":"amber")+"'>"+escapeHtml(friendlyLifecycle(n.lifecycle))+"</span></td><td><button class='table-action' data-node='"+escapeHtml(n.id)+"' data-node-action='"+((actionLabel==="Stop")?"drain":"resume")+"' aria-label='"+actionLabel+" "+escapeHtml(n.id)+"'>"+actionLabel+"</button></td></tr>";}).join(""):"<tr><td colspan='8' class='empty-row'>No nodes match this filter.</td></tr>";
   }
   function renderObjects(){
     const q=($("#object-search")?.value||"").toLowerCase(),rows=DATA.objects.filter(o=>(state.objectFilter==="all"||o.status===state.objectFilter)&&(!q||(o.id+" "+o.checksum+" "+o.status).toLowerCase().includes(q)));
@@ -330,7 +334,7 @@
         toast(name.charAt(0).toUpperCase()+name.slice(1)+" accepted",id?"Tracking "+id:"Part B accepted the request.");if(id)pollJob(name,id);return;
       }
       toast(name.charAt(0).toUpperCase()+name.slice(1)+" started","Safe demo control-plane simulation is running.");await runDemoAction(name);
-    }catch(error){toast("Operation failed",error.message||"Unexpected frontend error");}
+    }catch(error){toast("Could not complete this action",error.message||"Please try again.");}
   }
   async function selectObject(id){
     state.selectedObject=id;state.detailLoading=CONFIG.mode==="api";renderAll();if(CONFIG.mode!=="api")return;
@@ -338,7 +342,7 @@
       const o=DATA.objects.find(item=>item.id===id);if(!o)throw new Error("Object not found in the current catalog.");
       const detail=await API.objectDetails(id),metadata=detail.metadata||{},versions=detail.versions||[],current=versions.find(v=>v.version_id===metadata.current_version_id)||versions[0]||{},replicas=Number(current.healthy_replicas);
       o.currentVersionId=metadata.current_version_id||current.version_id||o.currentVersionId;o.currentVersion=current;o.version=current.version_number?"v"+current.version_number:(o.currentVersionId||"current");o.size=Number.isFinite(Number(current.size_bytes))?formatBytes(Number(current.size_bytes)):"—";o.checksum=current.checksum||"—";o.replicas=Number.isFinite(replicas)?replicas+"/3":"—";o.status=String(current.state||metadata.state||"ACTIVE").toUpperCase()==="CORRUPTED"?"corrupted":(Number.isFinite(replicas)&&replicas<3?"degraded":"healthy");o.type=metadata.content_type||metadata.type||o.type||"object";o.created=formatTimestamp(metadata.created_at||o.created);o.updated=formatTimestamp(metadata.updated_at||o.updated);o.replicaRows=[];
-    }catch(error){toast("Object details unavailable",error.message);}finally{state.detailLoading=false;renderAll();}
+    }catch(error){toast("File details unavailable",error.message);}finally{state.detailLoading=false;renderAll();}
   }
   function openModal(){const m=$("#modal");m.classList.add("open");m.setAttribute("aria-hidden","false");setTimeout(()=>$("#file-input").focus(),20);}
   function closeModal(){const m=$("#modal");m.classList.remove("open");m.setAttribute("aria-hidden","true");$("#progress-wrap").hidden=true;$("#progress-bar").style.width="0%";$("#progress-value").textContent="0%";$("#file-name").textContent="No file selected";$("#upload-btn").disabled=true;$("#file-input").value="";}
@@ -361,7 +365,7 @@
     DATA.events.unshift({type:"success",icon:"⚡",title:"Resilience drill completed",body:"A simulated node failure was detected, isolated, repaired and checksum-verified without data loss.",relative:"just now"});state.drillRunning=false;$("#drill-run").disabled=false;$("#drill-run").textContent="Run again";toast("Resilience drill complete","Zero-data-loss recovery path demonstrated locally.");renderAll();
   }
   const commands=[
-    {label:"Go to Overview",keys:"1",run:()=>showView("overview")},{label:"Go to Nodes",keys:"2",run:()=>showView("nodes")},{label:"Go to Objects",keys:"3",run:()=>showView("objects")},{label:"Go to Repairs",keys:"4",run:()=>showView("repairs")},{label:"Go to Integrity",keys:"5",run:()=>showView("integrity")},{label:"Go to Rebalance",keys:"6",run:()=>showView("rebalance")},{label:"Open Events",keys:"7",run:()=>showView("events")},{label:"Open Policies",keys:"8",run:()=>showView("policies")},{label:"Upload object",keys:"U",run:openModal},{label:"Run integrity scan",keys:"I",run:()=>runAction("integrity")},{label:"Run resilience drill",keys:"D",run:openDrill},{label:"Refresh telemetry",keys:"R",run:async()=>{try{await API.sync();renderAll();toast("Refreshed",CONFIG.mode==="api"?"Live Vault telemetry synchronized.":"Demo telemetry refreshed.");}catch(e){toast("Refresh failed",e.message);}}}
+    {label:"Go to Overview",keys:"1",run:()=>showView("overview")},{label:"Go to Nodes",keys:"2",run:()=>showView("nodes")},{label:"Go to Objects",keys:"3",run:()=>showView("objects")},{label:"Go to Repairs",keys:"4",run:()=>showView("repairs")},{label:"Go to Integrity",keys:"5",run:()=>showView("integrity")},{label:"Go to Rebalance",keys:"6",run:()=>showView("rebalance")},{label:"Open Events",keys:"7",run:()=>showView("events")},{label:"Open Policies",keys:"8",run:()=>showView("policies")},{label:"Upload object",keys:"U",run:openModal},{label:"Run integrity scan",keys:"I",run:()=>runAction("integrity")},{label:"Run resilience drill",keys:"D",run:openDrill},{label:"Refresh telemetry",keys:"R",run:async()=>{try{await API.sync();renderAll();toast("Updated",CONFIG.mode==="api"?"Live storage data refreshed.":"Demo data refreshed.");}catch(e){toast("Refresh failed",e.message);}}}
   ];
   function renderCommands(){const q=($("#command-input")?.value||"").toLowerCase(),list=commands.filter(c=>c.label.toLowerCase().includes(q));state.commandIndex=Math.min(state.commandIndex,Math.max(0,list.length-1));$("#command-list").innerHTML=list.map((c,i)=>"<button class='command-item "+(i===state.commandIndex?"active":"")+"' data-command-label='"+escapeHtml(c.label)+"'><span>"+escapeHtml(c.label)+"</span><kbd>"+escapeHtml(c.keys)+"</kbd></button>").join("")||"<div class='empty command-empty'><b>⌕</b><h3>No command found</h3><p>Try “upload”, “repair”, or a view name.</p></div>";}
   function openCommand(){const m=$("#command-modal");m.classList.add("open");m.setAttribute("aria-hidden","false");state.commandIndex=0;renderCommands();setTimeout(()=>$("#command-input").focus(),20);}
@@ -372,11 +376,11 @@
     const action=e.target.closest("[data-action]");
     if(action){
       const a=action.dataset.action;
-      if(a==="upload")openModal();else if(a==="close-modal")closeModal();else if(a==="upload-file")await uploadFile();else if(a==="integrity")await runAction("integrity");else if(a==="repair")await runAction("repair");else if(a==="rebalance")await runAction("rebalance");else if(a==="refresh"){try{await API.sync();renderAll();toast("Refreshed",CONFIG.mode==="api"?"Live Vault telemetry synchronized.":"Demo telemetry refreshed.");}catch(error){toast("Refresh failed",error.message);}}else if(a==="clear-events"){if(CONFIG.mode==="api")toast("Read-only feed","Live event history comes from Part B and is not deleted by the frontend.");else{DATA.events=[];renderAll();toast("Demo alerts cleared","Local event history was cleared.");}}else if(a==="drill")openDrill();else if(a==="close-drill")closeDrill();else if(a==="run-drill")await runDrill();
+      if(a==="upload")openModal();else if(a==="close-modal")closeModal();else if(a==="upload-file")await uploadFile();else if(a==="integrity")await runAction("integrity");else if(a==="repair")await runAction("repair");else if(a==="rebalance")await runAction("rebalance");else if(a==="refresh"){try{await API.sync();renderAll();toast("Updated",CONFIG.mode==="api"?"Live storage data refreshed.":"Demo data refreshed.");}catch(error){toast("Could not refresh",error.message);}}else if(a==="clear-events"){if(CONFIG.mode==="api")toast("Read-only feed","Live event history comes from Part B and is not deleted by the frontend.");else{DATA.events=[];renderAll();toast("Demo alerts cleared","Local event history was cleared.");}}else if(a==="drill")openDrill();else if(a==="close-drill")closeDrill();else if(a==="run-drill")await runDrill();
     }
     const obj=e.target.closest("[data-object]");if(obj){await selectObject(obj.dataset.object);return;}
     const node=e.target.closest("[data-node]");
-    if(node){const n=DATA.nodes.find(x=>x.id===node.dataset.node);if(!n)return;if(CONFIG.mode==="api"){toast("Demo-only control","Part B exposes no public drain/resume endpoint in the documented contract.");return;}n.lifecycle=node.dataset.nodeAction==="drain"?"DRAINING":"HEALTHY";n.status=n.lifecycle==="DRAINING"?"attention":"healthy";renderAll();toast(n.id,n.lifecycle==="DRAINING"?"Node is now draining in the local simulation.":"Node resumed in the local simulation.");}
+    if(node){const n=DATA.nodes.find(x=>x.id===node.dataset.node);if(!n)return;if(CONFIG.mode==="api"){toast("Not available here","The live storage service does not expose a safe stop/start control from this dashboard.");return;}n.lifecycle=node.dataset.nodeAction==="drain"?"DRAINING":"HEALTHY";n.status=n.lifecycle==="DRAINING"?"attention":"healthy";renderAll();toast(n.id,n.lifecycle==="DRAINING"?"Storage location is stopping in the demo.":"Storage location is running again in the demo.");}
     const cmd=e.target.closest("[data-command-label]");if(cmd)runCommand(cmd.dataset.commandLabel);
   });
   const handleSearchInput=debounce(e=>{if(e.target.id==="node-search")renderNodes();if(e.target.id==="object-search")renderObjects();if(e.target.id==="command-input"){state.commandIndex=0;renderCommands();}});
@@ -384,7 +388,7 @@
   $("#node-filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter]");if(b)setFilter("nodeFilter",b.dataset.filter);});
   $("#object-filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter]");if(b)setFilter("objectFilter",b.dataset.filter);});
   $("#event-filters").addEventListener("click",e=>{const b=e.target.closest("[data-filter]");if(b)setFilter("eventFilter",b.dataset.filter);});
-  $("#refresh").addEventListener("click",async()=>{try{await API.sync();renderAll();toast("Refreshed",CONFIG.mode==="api"?"Live Vault telemetry synchronized.":"Demo telemetry refreshed.");}catch(error){renderAll();toast("Refresh failed",error.message);}});
+  $("#refresh").addEventListener("click",async()=>{try{await API.sync();renderAll();toast("Refreshed",CONFIG.mode==="api"?"Live Vault telemetry synchronized.":"Demo telemetry refreshed.");}catch(error){renderAll();toast("Could not refresh",error.message);}});
   $("#command-open").addEventListener("click",openCommand);
   $("#command-input").addEventListener("keydown",e=>{const items=$$("#command-list .command-item");if(e.key==="ArrowDown"){e.preventDefault();state.commandIndex=Math.min(state.commandIndex+1,Math.max(0,items.length-1));renderCommands();}if(e.key==="ArrowUp"){e.preventDefault();state.commandIndex=Math.max(0,state.commandIndex-1);renderCommands();}if(e.key==="Enter"){e.preventDefault();items[state.commandIndex]?.click();}});
   const drop=document.querySelector(".drop");
@@ -415,6 +419,6 @@
   });
   renderAll();
   const hash=location.hash.slice(1);showView(ROUTES.includes(hash)?hash:"overview");
-  API.sync().then(()=>renderAll()).catch(error=>{if(CONFIG.mode==="api")toast("API unavailable",error.message);renderAll();});
+  API.sync().then(()=>renderAll()).catch(error=>{if(CONFIG.mode==="api")toast("Storage connection problem",error.message);renderAll();});
   window.VaultFrontend={API,DATA,state,showView,openDrill,runDrill};
 })();
