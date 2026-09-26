@@ -7,7 +7,7 @@ from typing import Callable
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Header, Request, Response, status
+from fastapi import APIRouter, Header, Query, Request, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
@@ -49,10 +49,15 @@ def build_gateway_router(
     router = APIRouter(prefix="/api/v1")
 
     @router.get("/objects")
-    def list_objects(request: Request) -> JSONResponse:
+    def list_objects(
+        request: Request,
+        limit: int = Query(default=500, ge=1, le=1000),
+        offset: int = Query(default=0, ge=0),
+    ) -> JSONResponse:
         request_id = _request_id(request)
-        with session_factory() as session:
-            payload = [
+        try:
+            with session_factory() as session:
+                payload = [
                 {
                     "object_id": str(obj.object_id),
                     "name": obj.name,
@@ -65,9 +70,21 @@ def build_gateway_router(
                     "created_at": obj.created_at,
                     "updated_at": obj.updated_at,
                 }
-                for obj in GatewayService(session).list_objects()
-            ]
-        return JSONResponse(jsonable_encoder(payload), headers={"X-Request-ID": request_id})
+                    for obj in GatewayService(session).list_objects(
+                        limit=limit,
+                        offset=offset,
+                    )
+                ]
+            return JSONResponse(
+                jsonable_encoder(payload),
+                headers={
+                    "X-Request-ID": request_id,
+                    "X-Object-Limit": str(limit),
+                    "X-Object-Offset": str(offset),
+                },
+            )
+        except ValueError as exc:
+            return _invalid_request_response(exc, request_id)
 
     @router.get("/objects/{name}/metadata")
     def object_metadata(name: str, request: Request) -> JSONResponse:
